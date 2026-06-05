@@ -263,8 +263,8 @@ def load_all(config: dict) -> dict:
         result["lpjml"] = make_lpjml_loader(history_dir, lpjml_cfg, epochs)
 
     # Year range derived from the actual epochs used, available to all modules.
-    y_start = int(epochs[0][:4])
-    y_end = int(epochs[-1][:4])
+    y_start = epochs[0][:4]
+    y_end = epochs[-1][:4]
     result["year_label"] = f"Y{y_start}" if y_start == y_end else f"Y{y_start}-Y{y_end}"
 
     return result
