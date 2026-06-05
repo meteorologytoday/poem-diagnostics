@@ -85,6 +85,7 @@ def _run_map_2d(
                 units=_UNITS.get(varname, ""),
                 vmin=vmin,
                 vmax=vmax,
+                n_levels=out_cfg.get("n_levels", 20),
                 dpi=out_cfg["dpi"],
             )
             print(f"  [ice/map_2d] saved {out_path}")

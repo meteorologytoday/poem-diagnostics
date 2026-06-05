@@ -134,6 +134,7 @@ def _plot_monthly_map(
         title=f"LPJ-mL {varname} — {mode}",
         output_path=out_path,
         units=_UNITS.get(varname, ""),
+        n_levels=out_cfg.get("n_levels", 20),
         dpi=out_cfg["dpi"],
     )
     print(f"  [land/map_2d] saved {out_path}")
@@ -169,6 +170,7 @@ def _plot_annual_map(
         title=f"LPJ-mL {varname} — annual mean",
         output_path=out_path,
         units=_UNITS.get(varname, ""),
+        n_levels=out_cfg.get("n_levels", 20),
         dpi=out_cfg["dpi"],
     )
     print(f"  [land/map_2d] saved {out_path}")
@@ -213,6 +215,7 @@ def _plot_soil_section(
         title=f"LPJ-mL {varname} zonal mean — {mode}",
         output_path=out_path,
         units=_UNITS.get(varname, ""),
+        n_levels=out_cfg.get("n_levels", 20),
         dpi=out_cfg["dpi"],
     )
     print(f"  [land/zonal_section] saved {out_path}")

@@ -106,6 +106,7 @@ def global_map(
     vmin: float | None = None,
     vmax: float | None = None,
     symmetric: bool = False,
+    n_levels: int = 20,
     dpi: int = 150,
 ) -> None:
     """
@@ -131,12 +132,15 @@ def global_map(
         2nd and 98th percentiles of non-NaN values.
     symmetric:
         Force a symmetric color scale around zero (overrides vmin/vmax).
+    n_levels:
+        Number of discrete color levels. Default: 20.
     dpi:
         Output resolution.
     """
     values = np.asarray(data)
     cmap = cmap or DEFAULT_CMAPS.get(str(data.name), "viridis")
     vmin, vmax = _resolve_clim(values, vmin, vmax, symmetric)
+    norm = _make_norm(cmap, vmin, vmax, n_levels)
 
     proj = ccrs.PlateCarree()
     fig, ax = plt.subplots(
@@ -149,8 +153,7 @@ def global_map(
         lon, lat, values,
         transform=ccrs.PlateCarree(),
         cmap=cmap,
-        vmin=vmin,
-        vmax=vmax,
+        norm=norm,
         shading="auto",
     )
     _add_colorbar(fig, ax, mesh, units)
@@ -170,6 +173,7 @@ def polar_map(
     vmin: float | None = None,
     vmax: float | None = None,
     symmetric: bool = False,
+    n_levels: int = 20,
     dpi: int = 150,
 ) -> None:
     """
@@ -194,6 +198,7 @@ def polar_map(
     values = np.asarray(data)
     cmap = cmap or DEFAULT_CMAPS.get(str(data.name), "viridis")
     vmin, vmax = _resolve_clim(values, vmin, vmax, symmetric)
+    norm = _make_norm(cmap, vmin, vmax, n_levels)
 
     fig, ax = plt.subplots(
         figsize=(6, 6),
@@ -206,8 +211,7 @@ def polar_map(
         lon, lat, values,
         transform=ccrs.PlateCarree(),
         cmap=cmap,
-        vmin=vmin,
-        vmax=vmax,
+        norm=norm,
         shading="auto",
     )
     _add_colorbar(fig, ax, mesh, units)
@@ -226,6 +230,7 @@ def zonal_section(
     vmin: float | None = None,
     vmax: float | None = None,
     symmetric: bool = False,
+    n_levels: int = 20,
     dpi: int = 150,
 ) -> None:
     """
@@ -237,13 +242,13 @@ def zonal_section(
     values = np.asarray(data)
     cmap = cmap or DEFAULT_CMAPS.get(str(data.name), "viridis")
     vmin, vmax = _resolve_clim(values, vmin, vmax, symmetric)
+    norm = _make_norm(cmap, vmin, vmax, n_levels)
 
     fig, ax = plt.subplots(figsize=(10, 5))
     mesh = ax.pcolormesh(
         lat, depth, values,
         cmap=cmap,
-        vmin=vmin,
-        vmax=vmax,
+        norm=norm,
         shading="auto",
     )
     ax.invert_yaxis()
@@ -274,6 +279,16 @@ def time_series(
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
+
+def _make_norm(
+    cmap: str,
+    vmin: float,
+    vmax: float,
+    n_levels: int,
+) -> mcolors.BoundaryNorm:
+    bounds = np.linspace(vmin, vmax, n_levels + 1)
+    return mcolors.BoundaryNorm(bounds, ncolors=plt.get_cmap(cmap).N)
+
 
 def _add_map_features(ax) -> None:
     ax.coastlines(**_COASTLINES_KW)

@@ -84,6 +84,7 @@ def _run_map_2d(
             output_path=out_path,
             units=_UNITS.get(varname, ""),
             symmetric=varname in _SYMMETRIC,
+            n_levels=out_cfg.get("n_levels", 20),
             dpi=out_cfg["dpi"],
         )
         print(f"  [ocean/map_2d] saved {out_path}")
@@ -124,6 +125,7 @@ def _run_zonal_section(
             output_path=out_path,
             units=_UNITS.get(varname, ""),
             symmetric=varname in _SYMMETRIC,
+            n_levels=out_cfg.get("n_levels", 20),
             dpi=out_cfg["dpi"],
         )
         print(f"  [ocean/zonal_section] saved {out_path}")

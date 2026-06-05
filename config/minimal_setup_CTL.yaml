@@ -125,3 +125,4 @@ output:
   # Final path: {base_dir}/{experiment.name}/{mode}/{component}/{diag_type}/{variable}.png
   format: png
   dpi: 150
+  n_levels: 20  # number of discrete color levels in all map plots
