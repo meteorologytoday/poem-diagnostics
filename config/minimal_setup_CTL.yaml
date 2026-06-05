@@ -1,0 +1,113 @@
+experiment:
+  name: minimal_setup_CTL
+  description: "Control run — minimal POEM setup"
+
+# ── Data paths ───────────────────────────────────────────────────────────────
+data:
+  history_dir: /p/projects/poem/tienyiao/projects/POEM_playground/test_minimal_setup/minimal_setup_CTL/history
+
+  # POEM component files: {epoch}.{component}.nc
+  # Epochs are discovered automatically by scanning history_dir.
+  components:
+    atmos_month:
+      pattern: "{epoch}.atmos_month.nc"
+      decode_timedelta: false
+    ocean_month:
+      pattern: "{epoch}.ocean_month.nc"
+      decode_timedelta: false
+    ocean_scalar:
+      pattern: "{epoch}.ocean_scalar.nc"
+      decode_timedelta: false
+    ice_month:
+      pattern: "{epoch}.ice_month.nc"
+      decode_timedelta: false
+    land_month:
+      pattern: "{epoch}.land_month.nc"
+      decode_timedelta: false
+
+  # LPJ-mL: one NetCDF file per variable, in per-epoch subdirectories.
+  # All lpjml files must be opened with decode_times=False because the
+  # time units ("years since 1901-1-1") cannot be decoded by cftime.
+  lpjml:
+    subdir_pattern: "lpjml_{epoch}"
+    decode_times: false
+
+    # Variables whose time axis packs N levels × N_time steps.
+    # The loader reshapes these to (time, <dim_name>, lat, lon).
+    packed_vars:
+      msoiltemp:
+        n_levels: 6
+        dim_name: soil_layer
+      soilc_layer:
+        n_levels: 5
+        dim_name: soil_layer
+      cftfrac:
+        n_levels: 2
+        dim_name: pft
+      pft_harvest_pft:
+        n_levels: 32
+        dim_name: pft
+
+# ── Grid metadata ─────────────────────────────────────────────────────────────
+grids:
+  atmos:
+    lat: lat
+    lon: lon
+    projection: PlateCarree
+
+  ocean:
+    # Ocean uses 2-D geographic coordinate arrays on a tripolar grid.
+    lat: geolat_t
+    lon: geolon_t
+    projection: PlateCarree
+
+  ice:
+    lat: GEOLAT
+    lon: GEOLON
+    projection: PlateCarree
+
+  lpjml:
+    lat: lat
+    lon: lon
+    projection: PlateCarree
+    mask_var: grid       # grid.nc — nonzero = active land cell
+    area_var: terr_area  # terr_area.nc — for area-weighted global means
+
+# ── Diagnostics ───────────────────────────────────────────────────────────────
+diagnostics:
+  atmos:
+    vars: [t_ref, precip, slp, olr, swdn_toa, netrad_toa, t_surf]
+
+  ocean:
+    vars: [sst, sss, mld, swflx, lw_heat, sens_heat, evap_heat]
+    # Variables with a vertical (st_ocean) dimension: produce zonal-mean sections.
+    depth_vars: [temp, salt]
+
+  ice:
+    vars: [CN, HI, EXT]
+    # Produce a separate figure for each hemisphere.
+    regions: [NH, SH]
+
+  land_lpjml:
+    # Monthly-frequency lpjml variables, grouped by theme.
+    monthly_vars:
+      carbon:   [mgpp, mnpp, mrh]
+      water:    [mevap, mrunoff, mdischarge, mpet]
+      surface:  [malbedo, soil_surf_temp, mswc1, mswc2, swe]
+      fire:     [mburnt_area, mnfire]
+    # Annual-frequency lpjml variables.
+    annual_vars:
+      carbon:   [agb, vegc, soilc, litc, firec]
+
+  timeseries:
+    # Variables from ocean_scalar.nc plotted as global time series.
+    ocean_scalar: [mass_total, salt_total, temp_total, ke_tot]
+    # Atmos variables for area-weighted global-mean time series.
+    atmos_global: [t_ref, precip, olr]
+
+# ── Output ────────────────────────────────────────────────────────────────────
+output:
+  base_dir: ./output
+  # Final path: {base_dir}/{experiment.name}/{mode}/{diagnostic}/{variable}.png
+  format: png
+  dpi: 150
