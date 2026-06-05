@@ -8,7 +8,7 @@ data:
 
   # Inclusive model-year range to load. Epochs outside this range are
   # ignored. Omit (or set to null) to load all epochs in history_dir.
-  year_range: [19, 23]
+  year_range: [1907, 2307]
 
   # POEM component files: {epoch}.{component}.nc
   # Epochs are discovered automatically by scanning history_dir.

@@ -122,13 +122,17 @@ no effect.
 ### POEM components (atmos / ocean / ice / land)
 
 Files follow the naming pattern `{epoch}.{component}.nc`. Epochs are
-10-digit date strings (e.g. `0019070101`) discovered by scanning the
-history directory. All epochs for a component are opened lazily with
+10-digit strings of the form `00YYYYMMDD` (e.g. `0019070101` = year 1907,
+month 01, day 01). The two leading zeros are a known artifact of the parent
+model's output writer — they are not part of the year. The epoch year is
+extracted as `epoch[2:6]` (characters 2–5), giving the 4-digit YYYY.
+Epochs are discovered by scanning the history directory and filtered by the
+`data.year_range` config field using this corrected year extraction.
+All epochs for a component are opened lazily with
 `xr.open_mfdataset(combine="by_coords")`.
 
 `xr.coders.CFDatetimeCoder(use_cftime=True)` is used for time decoding
-to handle model years (e.g. year 19) that are outside the range of
-numpy datetime64.
+to handle model years that are outside the range of numpy datetime64.
 
 `decode_timedelta=False` suppresses an xarray `FutureWarning` caused by
 the `average_DT` variable, which carries a timedelta-like unit string but
@@ -227,7 +231,7 @@ sections:
 |---|---|
 | `experiment` | Name and description (used in output paths and plot titles) |
 | `data.history_dir` | Root directory containing POEM epoch files and lpjml subdirs |
-| `data.year_range` | Optional inclusive model-year range; omit to load all epochs |
+| `data.year_range` | Optional inclusive 4-digit model-year range (YYYY); omit to load all epochs |
 | `data.components` | Per-component filename pattern and decode options |
 | `data.lpjml` | LPJ-mL subdir pattern, decode option, packed variable specs |
 | `grids` | Lat/lon coordinate names and cartopy projection per component |

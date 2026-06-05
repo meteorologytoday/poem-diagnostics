@@ -77,7 +77,7 @@ def discover_epochs(
     if year_range is None:
         return all_epochs
     start, end = year_range
-    filtered = [e for e in all_epochs if start <= int(e[:4]) <= end]
+    filtered = [e for e in all_epochs if start <= int(e[2:6]) <= end]
     if not filtered:
         raise ValueError(
             f"No epochs found in year range [{start}, {end}]. "
@@ -263,8 +263,8 @@ def load_all(config: dict) -> dict:
         result["lpjml"] = make_lpjml_loader(history_dir, lpjml_cfg, epochs)
 
     # Year range derived from the actual epochs used, available to all modules.
-    y_start = epochs[0][:4]
-    y_end = epochs[-1][:4]
+    y_start = epochs[0][2:6]
+    y_end = epochs[-1][2:6]
     result["year_label"] = f"Y{y_start}" if y_start == y_end else f"Y{y_start}-Y{y_end}"
 
     return result
