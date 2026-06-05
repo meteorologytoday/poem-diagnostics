@@ -67,7 +67,7 @@ Examples:
 
   # Override year range from the config
   python run_diagnostics.py --config config/minimal_setup_CTL.yaml \\
-      --year-range 19 21
+      --year-range 1907 2007
 """,
     )
     parser.add_argument(
@@ -123,7 +123,7 @@ Examples:
         default=None,
         metavar=("START", "END"),
         help=(
-            "Inclusive model-year range to load (e.g. --year-range 19 21). "
+            "Inclusive 4-digit model-year range to load (e.g. --year-range 1907 2007). "
             "Overrides data.year_range in the config."
         ),
     )
