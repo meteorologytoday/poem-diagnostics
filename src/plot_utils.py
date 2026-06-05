@@ -16,7 +16,6 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")  # non-interactive backend for headless / SSH sessions
 import cartopy.crs as ccrs
-import cartopy.feature as cfeature
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import numpy as np
@@ -24,11 +23,6 @@ import xarray as xr
 
 # Features added to every map by default.
 _COASTLINES_KW = dict(linewidth=0.5, color="black")
-_LAND_FEATURE = cfeature.NaturalEarthFeature(
-    "physical", "land", "110m",
-    edgecolor="none",
-    facecolor=cfeature.COLORS["land"],
-)
 
 # Default colormaps keyed by variable name. Diagnostic modules fall back
 # to "viridis" for variables not listed here.
@@ -282,7 +276,6 @@ def time_series(
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 def _add_map_features(ax) -> None:
-    ax.add_feature(_LAND_FEATURE)
     ax.coastlines(**_COASTLINES_KW)
     ax.set_global()
 
