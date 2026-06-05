@@ -78,40 +78,50 @@ grids:
     area_var: terr_area  # terr_area.nc — for area-weighted global means
 
 # ── Diagnostics ───────────────────────────────────────────────────────────────
+# Two-layer structure: component → diag_type → settings.
+# CLI selects any combination via --components and --diag-types.
 diagnostics:
   atmos:
-    vars: [t_ref, precip, slp, olr, swdn_toa, netrad_toa, t_surf]
+    map_2d:
+      vars: [t_ref, precip, slp, olr, swdn_toa, netrad_toa, t_surf]
+    timeseries:
+      # Area-weighted global-mean time series from atmos_month.
+      vars: [t_ref, precip, olr]
 
   ocean:
-    vars: [sst, sss, mld, swflx, lw_heat, sens_heat, evap_heat]
-    # Variables with a vertical (st_ocean) dimension: produce zonal-mean sections.
-    depth_vars: [temp, salt]
+    map_2d:
+      vars: [sst, sss, mld, swflx, lw_heat, sens_heat, evap_heat]
+    zonal_section:
+      # Variables with a vertical (st_ocean) dimension.
+      vars: [temp, salt]
+    timeseries:
+      # Pre-integrated global quantities from ocean_scalar.nc.
+      vars: [mass_total, salt_total, temp_total, ke_tot]
 
   ice:
-    vars: [CN, HI, EXT]
-    # Produce a separate figure for each hemisphere.
-    regions: [NH, SH]
+    map_2d:
+      vars: [CN, HI, EXT]
+      # Produce a separate figure for each hemisphere.
+      regions: [NH, SH]
 
-  land_lpjml:
-    # Monthly-frequency lpjml variables, grouped by theme.
-    monthly_vars:
-      carbon:   [mgpp, mnpp, mrh]
-      water:    [mevap, mrunoff, mdischarge, mpet]
-      surface:  [malbedo, soil_surf_temp, mswc1, mswc2, swe]
-      fire:     [mburnt_area, mnfire]
-    # Annual-frequency lpjml variables.
-    annual_vars:
-      carbon:   [agb, vegc, soilc, litc, firec]
-
-  timeseries:
-    # Variables from ocean_scalar.nc plotted as global time series.
-    ocean_scalar: [mass_total, salt_total, temp_total, ke_tot]
-    # Atmos variables for area-weighted global-mean time series.
-    atmos_global: [t_ref, precip, olr]
+  land:
+    map_2d:
+      # Monthly-frequency LPJ-mL variables, grouped by theme.
+      monthly_vars:
+        carbon:   [mgpp, mnpp, mrh]
+        water:    [mevap, mrunoff, mdischarge, mpet]
+        surface:  [malbedo, soil_surf_temp, mswc1, mswc2, swe]
+        fire:     [mburnt_area, mnfire]
+      # Annual-frequency LPJ-mL variables.
+      annual_vars:
+        carbon:   [agb, vegc, soilc, litc, firec]
+    zonal_section:
+      # Packed soil-layer variables — produce latitude-depth profiles.
+      vars: [msoiltemp, soilc_layer]
 
 # ── Output ────────────────────────────────────────────────────────────────────
 output:
   base_dir: ./output
-  # Final path: {base_dir}/{experiment.name}/{mode}/{diagnostic}/{variable}.png
+  # Final path: {base_dir}/{experiment.name}/{mode}/{component}/{diag_type}/{variable}.png
   format: png
   dpi: 150

@@ -6,23 +6,42 @@ Usage
 -----
     python run_diagnostics.py --config config/minimal_setup_CTL.yaml \\
                               --modes annual JJA DJF \\
-                              --diagnostics atmos ocean ice land_lpjml timeseries \\
-                              --output-dir ./output
+                              --components atmos ocean ice land \\
+                              --diag-types map_2d timeseries zonal_section
 
 All arguments except --config have sensible defaults (see --help).
 """
 
 import argparse
+import copy
 import sys
 from pathlib import Path
 
 import yaml
 
 from src import data_loader
-from src.diagnostics import atmos_2d, ocean_2d, ice_2d, land_lpjml, timeseries
-from src.temporal_agg import SEASON_MONTHS, VALID_MODES
+from src.diagnostics import atmos, ocean, ice, land_lpjml
+from src.temporal_agg import SEASON_MONTHS
 
-AVAILABLE_DIAGNOSTICS = ["atmos", "ocean", "ice", "land_lpjml", "timeseries"]
+# Registry: component name → module with a HANDLERS dict and run() function.
+COMPONENT_MODULES = {
+    "atmos": atmos,
+    "ocean": ocean,
+    "ice": ice,
+    "land": land_lpjml,
+}
+
+# All diag_types recognised across any component. A component silently
+# skips types it does not support (not in its HANDLERS dict).
+ALL_DIAG_TYPES = ["map_2d", "timeseries", "zonal_section"]
+
+# Dataset keys each component reads from the data dict.
+_COMPONENT_DATA_KEYS = {
+    "atmos": ["atmos_month"],
+    "ocean": ["ocean_month", "ocean_scalar"],
+    "ice":   ["ice_month"],
+    "land":  ["lpjml"],
+}
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -31,23 +50,22 @@ def parse_args(argv=None) -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Annual mean for all diagnostics
+  # Annual mean, all components and diag-types
   python run_diagnostics.py --config config/minimal_setup_CTL.yaml
 
-  # JJA and DJF for atmosphere and ocean only
+  # JJA and DJF maps for atmosphere and ocean only
   python run_diagnostics.py --config config/minimal_setup_CTL.yaml \\
-      --modes JJA DJF --diagnostics atmos ocean
+      --modes JJA DJF --components atmos ocean --diag-types map_2d
 
-  # Single calendar month (July = 7)
+  # All timeseries diagnostics, annual
   python run_diagnostics.py --config config/minimal_setup_CTL.yaml \\
-      --modes 7
+      --diag-types timeseries
 
-  # Restrict to specific variables during development
+  # Single variable during development
   python run_diagnostics.py --config config/minimal_setup_CTL.yaml \\
-      --diagnostics atmos --vars t_ref precip
+      --components atmos --diag-types map_2d --vars t_ref
 """,
     )
-
     parser.add_argument(
         "--config",
         required=True,
@@ -61,20 +79,30 @@ Examples:
         default=["annual"],
         metavar="MODE",
         help=(
-            "One or more temporal aggregation modes: 'annual', a season "
-            "code (DJF MAM JJA SON), or a month number 1-12. "
-            "Default: annual."
+            "Temporal aggregation modes: 'annual', season code "
+            "(DJF MAM JJA SON), or month number 1-12. Default: annual."
         ),
     )
     parser.add_argument(
-        "--diagnostics",
+        "--components",
         nargs="+",
-        default=AVAILABLE_DIAGNOSTICS,
-        choices=AVAILABLE_DIAGNOSTICS,
-        metavar="DIAG",
+        default=list(COMPONENT_MODULES),
+        choices=list(COMPONENT_MODULES),
+        metavar="COMPONENT",
         help=(
-            f"Diagnostic modules to run. Choose from: "
-            f"{AVAILABLE_DIAGNOSTICS}. Default: all."
+            f"Model components to process: {list(COMPONENT_MODULES)}. "
+            "Default: all."
+        ),
+    )
+    parser.add_argument(
+        "--diag-types",
+        nargs="+",
+        default=ALL_DIAG_TYPES,
+        choices=ALL_DIAG_TYPES,
+        metavar="TYPE",
+        help=(
+            f"Diagnostic plot types: {ALL_DIAG_TYPES}. "
+            "Default: all. Each component only produces types it supports."
         ),
     )
     parser.add_argument(
@@ -82,10 +110,7 @@ Examples:
         type=Path,
         default=None,
         metavar="DIR",
-        help=(
-            "Override the output directory from the config. "
-            "Figures are written to <output-dir>/<experiment>/<mode>/<diagnostic>/."
-        ),
+        help="Override the output base directory from the config.",
     )
     parser.add_argument(
         "--vars",
@@ -93,16 +118,14 @@ Examples:
         default=None,
         metavar="VAR",
         help=(
-            "Restrict plotting to these variable names. Applies to all "
-            "selected diagnostic modules. Useful during development."
+            "Restrict to these variable names across all selected components "
+            "and types. Useful during development."
         ),
     )
-
     return parser.parse_args(argv)
 
 
 def parse_mode(raw: str) -> str | int:
-    """Convert a CLI mode string to the internal representation."""
     if raw == "annual" or raw in SEASON_MONTHS:
         return raw
     try:
@@ -120,35 +143,27 @@ def apply_var_filter(config: dict, vars_filter: list[str] | None) -> dict:
     """Restrict variable lists in config to those in vars_filter."""
     if not vars_filter:
         return config
-    import copy
     cfg = copy.deepcopy(config)
     diag = cfg.get("diagnostics", {})
+    vset = set(vars_filter)
 
-    if "atmos" in diag:
-        diag["atmos"]["vars"] = [v for v in diag["atmos"]["vars"] if v in vars_filter]
+    for comp in ("atmos", "ocean", "ice"):
+        comp_cfg = diag.get(comp, {})
+        for dtype in ("map_2d", "zonal_section", "timeseries"):
+            if dtype in comp_cfg and "vars" in comp_cfg[dtype]:
+                comp_cfg[dtype]["vars"] = [
+                    v for v in comp_cfg[dtype]["vars"] if v in vset
+                ]
 
-    if "ocean" in diag:
-        diag["ocean"]["vars"] = [v for v in diag["ocean"]["vars"] if v in vars_filter]
-        diag["ocean"]["depth_vars"] = [
-            v for v in diag["ocean"].get("depth_vars", []) if v in vars_filter
-        ]
-
-    if "ice" in diag:
-        diag["ice"]["vars"] = [v for v in diag["ice"]["vars"] if v in vars_filter]
-
-    if "land_lpjml" in diag:
-        for group in diag["land_lpjml"].get("monthly_vars", {}).values():
-            group[:] = [v for v in group if v in vars_filter]
-        for group in diag["land_lpjml"].get("annual_vars", {}).values():
-            group[:] = [v for v in group if v in vars_filter]
-
-    if "timeseries" in diag:
-        diag["timeseries"]["ocean_scalar"] = [
-            v for v in diag["timeseries"].get("ocean_scalar", []) if v in vars_filter
-        ]
-        diag["timeseries"]["atmos_global"] = [
-            v for v in diag["timeseries"].get("atmos_global", []) if v in vars_filter
-        ]
+    land_cfg = diag.get("land", {})
+    map2d = land_cfg.get("map_2d", {})
+    for group in map2d.get("monthly_vars", {}).values():
+        group[:] = [v for v in group if v in vset]
+    for group in map2d.get("annual_vars", {}).values():
+        group[:] = [v for v in group if v in vset]
+    zs = land_cfg.get("zonal_section", {})
+    if "vars" in zs:
+        zs["vars"] = [v for v in zs["vars"] if v in vset]
 
     return cfg
 
@@ -156,7 +171,6 @@ def apply_var_filter(config: dict, vars_filter: list[str] | None) -> dict:
 def main(argv=None) -> int:
     args = parse_args(argv)
 
-    # Load config
     if not args.config.exists():
         print(f"Error: config file not found: {args.config}", file=sys.stderr)
         return 1
@@ -164,7 +178,6 @@ def main(argv=None) -> int:
     with args.config.open() as fh:
         config = yaml.safe_load(fh)
 
-    # Parse and validate modes
     modes = []
     for raw in args.modes:
         try:
@@ -173,70 +186,40 @@ def main(argv=None) -> int:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
 
-    # Determine output root
-    out_cfg = config["output"]
-    output_root = args.output_dir or Path(out_cfg["base_dir"])
+    output_root = args.output_dir or Path(config["output"]["base_dir"])
     exp_name = config["experiment"]["name"]
-
-    # Apply variable filter if requested
     config = apply_var_filter(config, args.vars)
 
-    # Load all data (lazy)
     print(f"Loading data for experiment '{exp_name}' ...")
     try:
         data = data_loader.load_all(config)
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, ValueError) as exc:
         print(f"Error loading data: {exc}", file=sys.stderr)
         return 1
 
-    selected = set(args.diagnostics)
+    selected_components = args.components
+    selected_types = args.diag_types
 
-    # Run each mode × diagnostic combination
     for mode in modes:
         mode_str = str(mode)
         mode_dir = output_root / exp_name / mode_str
         print(f"\n── Mode: {mode_str} ──────────────────────────")
 
-        if "atmos" in selected:
-            if "atmos_month" in data:
-                print("Running atmos diagnostics ...")
-                atmos_2d.run(data["atmos_month"], config, mode, mode_dir)
-            else:
-                print("  [atmos] no atmos_month data loaded, skipping")
-
-        if "ocean" in selected:
-            if "ocean_month" in data:
-                print("Running ocean diagnostics ...")
-                ocean_2d.run(data["ocean_month"], config, mode, mode_dir)
-            else:
-                print("  [ocean] no ocean_month data loaded, skipping")
-
-        if "ice" in selected:
-            if "ice_month" in data:
-                print("Running ice diagnostics ...")
-                ice_2d.run(data["ice_month"], config, mode, mode_dir)
-            else:
-                print("  [ice] no ice_month data loaded, skipping")
-
-        if "land_lpjml" in selected:
-            if "lpjml" in data:
-                print("Running LPJ-mL diagnostics ...")
-                land_lpjml.run(data["lpjml"], config, mode, mode_dir)
-            else:
-                print("  [land_lpjml] no lpjml loader available, skipping")
-
-        if "timeseries" in selected:
-            if "ocean_scalar" in data and "atmos_month" in data:
-                print("Running timeseries diagnostics ...")
-                timeseries.run(
-                    data["ocean_scalar"],
-                    data["atmos_month"],
-                    config,
-                    mode,
-                    mode_dir,
+        for comp_name in selected_components:
+            module = COMPONENT_MODULES[comp_name]
+            required_keys = _COMPONENT_DATA_KEYS[comp_name]
+            missing = [k for k in required_keys if k not in data]
+            if missing:
+                print(
+                    f"  [{comp_name}] skipping — data not loaded: {missing}"
                 )
-            else:
-                print("  [timeseries] missing ocean_scalar or atmos_month, skipping")
+                continue
+
+            for diag_type in selected_types:
+                if diag_type not in module.HANDLERS:
+                    continue
+                print(f"  Running {comp_name} / {diag_type} ...")
+                module.run(diag_type, data, config, mode, mode_dir)
 
     print(f"\nDone. Output written to: {output_root / exp_name}")
     return 0

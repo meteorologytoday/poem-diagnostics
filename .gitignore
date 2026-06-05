@@ -4,3 +4,5 @@ __pycache__/
 *.core
 core-*
 .DS_Store
+*.swp
+*.swo

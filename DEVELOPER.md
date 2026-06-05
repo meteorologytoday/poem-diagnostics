@@ -4,8 +4,9 @@
 
 This codebase generates diagnostic figures for POEM coupled-model output
 (atmosphere, ocean, sea ice) and LPJ-mL land model output. It is designed
-to be flexible: any combination of temporal aggregation modes and diagnostic
-modules can be requested on the command line without modifying source code.
+to be flexible: any combination of temporal aggregation modes, model
+components, and diagnostic types can be requested on the command line
+without modifying source code.
 
 ---
 
@@ -20,11 +21,10 @@ plotting_poem/
 │   ├── temporal_agg.py          # temporal aggregation (annual / seasonal / monthly)
 │   ├── plot_utils.py            # shared cartopy map and figure helpers
 │   └── diagnostics/
-│       ├── atmos_2d.py          # atmosphere 2-D maps
-│       ├── ocean_2d.py          # ocean 2-D maps + depth sections
-│       ├── ice_2d.py            # sea-ice polar maps
-│       ├── land_lpjml.py        # LPJ-mL land model maps
-│       └── timeseries.py        # global time series
+│       ├── atmos.py             # atmosphere: map_2d, timeseries
+│       ├── ocean.py             # ocean: map_2d, zonal_section, timeseries
+│       ├── ice.py               # sea ice: map_2d
+│       └── land_lpjml.py        # LPJ-mL land model: map_2d, zonal_section
 ├── run_diagnostics.py           # CLI entry point (argparse)
 └── output/                      # generated figures (gitignored)
 ```
@@ -36,61 +36,84 @@ plotting_poem/
 ```bash
 python run_diagnostics.py --config config/minimal_setup_CTL.yaml \
                           --modes annual JJA DJF \
-                          --diagnostics atmos ocean ice land_lpjml timeseries \
-                          --output-dir ./output
+                          --components atmos ocean ice land \
+                          --diag-types map_2d timeseries zonal_section
 ```
 
 | Argument | Default | Notes |
 |---|---|---|
 | `--config` | required | Path to the experiment YAML |
 | `--modes` | `annual` | One or more of: `annual DJF MAM JJA SON` or integer `1`–`12` |
-| `--diagnostics` | all | Subset of diagnostic modules to run |
+| `--components` | all | `atmos ocean ice land` |
+| `--diag-types` | all | `map_2d timeseries zonal_section` |
 | `--output-dir` | from config | Overrides `output.base_dir` in the YAML |
 | `--vars` | all | Restrict to specific variable names (useful during development) |
 
 ### Output path structure
 
 ```
-output/{experiment.name}/{mode}/{diagnostic}/{variable}.png
+output/{experiment.name}/{mode}/{component}/{diag_type}/{variable}.png
 ```
 
-Running with a new mode only adds new files; it never overwrites figures
-from other modes.
+Running with a new mode or a new diag-type only adds files; it never
+overwrites figures from other combinations.
 
 ---
 
 ## Design principles
 
-### 1. Aggregation is centralised
+### 1. Two independent selection axes
+
+Components (`atmos`, `ocean`, `ice`, `land`) and diagnostic types
+(`map_2d`, `timeseries`, `zonal_section`) are orthogonal dimensions.
+Any combination can be requested at the CLI. A component silently skips
+a diag-type it does not support — no error, no code change needed.
+
+### 2. Aggregation is centralised
 
 All temporal aggregation goes through `src/temporal_agg.aggregate()`.
 Diagnostic modules never contain groupby or season-selection logic.
 Adding a new aggregation mode (e.g. JJAS) means editing only `temporal_agg.py`.
 
-### 2. Config vs CLI
+### 3. Config vs CLI
 
 - **Config (YAML)**: stable, experiment-specific facts — data paths, variable
   lists, grid metadata, output format.
-- **CLI**: transient per-invocation choices — which modes, which modules,
-  where to write. The config is committed to the repo; CLI arguments are not.
+- **CLI**: transient per-invocation choices — which modes, components, and
+  diag-types to run. The config is committed to the repo; CLI arguments are not.
 
-### 3. Diagnostic modules are independent
+### 4. Component modules own their data
 
-Each module under `src/diagnostics/` has a single `run()` function with
-a consistent signature:
+Each module under `src/diagnostics/` receives the full `data` dict and
+extracts the datasets it needs. This keeps the module self-contained and
+avoids fragile positional argument ordering:
 
 ```python
-def run(data, config, mode, output_dir): ...
+def run(diag_type: str, data: dict, config: dict, mode: str | int, output_dir: Path): ...
 ```
 
-Modules do not call each other. `run_diagnostics.py` is the only file that
-knows all modules exist.
+The module exposes a `HANDLERS` dict mapping diag-type names to internal
+functions. `run_diagnostics.py` checks `HANDLERS` before calling `run()`.
 
-### 4. LPJ-mL data is loaded on demand
+### 5. LPJ-mL data is loaded on demand
 
 LPJ-mL has ~60 variables each in a separate file. The loader returns a
 callable `lpjml_loader(varname) -> xr.DataArray` rather than loading
-everything upfront. Diagnostic modules request variables individually.
+everything upfront. The `land_lpjml` module requests variables individually.
+
+---
+
+## Supported diag-types per component
+
+| Component | map_2d | timeseries | zonal_section |
+|---|---|---|---|
+| atmos | ✓ | ✓ | — |
+| ocean | ✓ | ✓ | ✓ |
+| ice | ✓ | — | — |
+| land | ✓ | — | ✓ (soil layers) |
+
+A `—` means the component does not implement that type. Requesting it has
+no effect.
 
 ---
 
@@ -103,9 +126,16 @@ Files follow the naming pattern `{epoch}.{component}.nc`. Epochs are
 history directory. All epochs for a component are opened lazily with
 `xr.open_mfdataset(combine="by_coords")`.
 
-`decode_timedelta=False` is set on every POEM open call to suppress an
-xarray `FutureWarning` caused by the `average_DT` variable, which carries
-a timedelta-like unit string but is not a timedelta coordinate.
+`xr.coders.CFDatetimeCoder(use_cftime=True)` is used for time decoding
+to handle model years (e.g. year 19) that are outside the range of
+numpy datetime64.
+
+`decode_timedelta=False` suppresses an xarray `FutureWarning` caused by
+the `average_DT` variable, which carries a timedelta-like unit string but
+is not a timedelta coordinate.
+
+The optional `data.year_range: [start, end]` config field (inclusive)
+filters which epochs are loaded. Omit it to load all epochs.
 
 ### LPJ-mL
 
@@ -151,32 +181,40 @@ The ocean grid is tripolar. Its geographic coordinates (`geolat_t`,
 `geolon_t`) are 2-D arrays of shape `(yt_ocean, xt_ocean)` stored as
 dataset coordinate variables (not as 1-D lat/lon vectors). Pass both 2-D
 arrays to `plot_utils.global_map()` — `pcolormesh` accepts 2-D coordinate
-arrays and will handle the non-rectangular grid correctly.
+arrays and handles the non-rectangular grid correctly.
 
 ---
 
 ## How to add a new diagnostic variable
 
-1. Add the variable name to the appropriate list in the YAML config
-   (e.g. `diagnostics.atmos.vars`).
+1. Add the variable name to the appropriate list in the YAML config under
+   `diagnostics.{component}.{diag_type}.vars`.
 2. Optionally add a colormap entry to `plot_utils.DEFAULT_CMAPS` and a
-   units string to the `_UNITS` dict in the relevant diagnostic module.
-3. No code changes are required if the variable has the same spatial
-   dimensions as existing variables in that component.
+   units string to the `_UNITS` dict in the component module.
+3. No code changes required if the variable has the same spatial dimensions
+   as existing variables in that component.
 
-## How to add a new diagnostic module
+## How to add a new diag-type to an existing component
 
-1. Create `src/diagnostics/my_module.py` with a `run(data, config, mode, output_dir)` function.
-2. Add `"my_module"` to `AVAILABLE_DIAGNOSTICS` in `run_diagnostics.py`.
-3. Add the dispatch block inside `main()` in `run_diagnostics.py`.
-4. Add the variable list to the config YAML under `diagnostics.my_module`.
+1. Write a `_run_{diag_type}()` function inside the component module.
+2. Add it to that module's `HANDLERS` dict.
+3. Add `{diag_type}` to `ALL_DIAG_TYPES` in `run_diagnostics.py`.
+4. Add the variable list to the config under
+   `diagnostics.{component}.{diag_type}`.
+
+## How to add a new component
+
+1. Create `src/diagnostics/my_component.py` with a `HANDLERS` dict and
+   a `run(diag_type, data, config, mode, output_dir)` function.
+2. Add it to `COMPONENT_MODULES` in `run_diagnostics.py`.
+3. Add its required data keys to `_COMPONENT_DATA_KEYS` in `run_diagnostics.py`.
+4. Add the config section under `diagnostics.my_component`.
 
 ## How to add a new temporal mode
 
 1. Edit `src/temporal_agg.py` only.
 2. If the new mode is a named season, add it to `SEASON_MONTHS`.
-3. For a custom range (e.g. JJAS = June–September), extend the
-   `elif` chain in `aggregate()`.
+3. For a custom range (e.g. JJAS), extend the `elif` chain in `aggregate()`.
 
 ---
 
@@ -187,12 +225,13 @@ sections:
 
 | Section | Purpose |
 |---|---|
-| `experiment` | Name and description (used in output paths and titles) |
+| `experiment` | Name and description (used in output paths and plot titles) |
 | `data.history_dir` | Root directory containing POEM epoch files and lpjml subdirs |
+| `data.year_range` | Optional inclusive model-year range; omit to load all epochs |
 | `data.components` | Per-component filename pattern and decode options |
 | `data.lpjml` | LPJ-mL subdir pattern, decode option, packed variable specs |
 | `grids` | Lat/lon coordinate names and cartopy projection per component |
-| `diagnostics` | Variable lists and options per diagnostic module |
+| `diagnostics` | Two-layer structure: `{component}.{diag_type}.vars` |
 | `output` | Output root, file format, and DPI |
 
 ---
@@ -200,6 +239,3 @@ sections:
 ## Dependencies
 
 Required: `xarray`, `numpy`, `matplotlib`, `cartopy`, `PyYAML`.
-
-The `pft_harvest_pft` packed variable assumes 32 PFTs. If the LPJ-mL
-configuration changes the PFT count, update `n_levels` in the config.
