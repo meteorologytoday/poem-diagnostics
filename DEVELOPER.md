@@ -47,6 +47,7 @@ python run_diagnostics.py --config config/minimal_setup_CTL.yaml \
 | `--components` | all | `atmos ocean ice land` |
 | `--diag-types` | all | `map_2d timeseries zonal_section` |
 | `--output-dir` | from config | Overrides `output.base_dir` in the YAML |
+| `--year-range START END` | from config | Inclusive 4-digit year range (e.g. `--year-range 1907 2307`); overrides `data.year_range` |
 | `--vars` | all | Restrict to specific variable names (useful during development) |
 
 ### Output path structure
@@ -168,7 +169,7 @@ The `n_levels` for each packed variable is declared in the config under
 adding a new packed variable** — a wrong value produces a silent reshape
 error that is hard to detect.
 
-Known packed variables and their level counts (as of this run):
+Known packed variables and their level counts (declared in `data.lpjml.packed_vars`):
 
 | Variable | n_levels | dim_name |
 |---|---|---|
