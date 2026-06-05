@@ -81,7 +81,7 @@ def discover_epochs(
     if not filtered:
         raise ValueError(
             f"No epochs found in year range [{start}, {end}]. "
-            f"Available years: {sorted({int(e[:4]) for e in all_epochs})}"
+            f"Available years: {sorted({int(e[2:6]) for e in all_epochs})}"
         )
     return filtered
 
