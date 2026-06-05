@@ -64,6 +64,10 @@ Examples:
   # Single variable during development
   python run_diagnostics.py --config config/minimal_setup_CTL.yaml \\
       --components atmos --diag-types map_2d --vars t_ref
+
+  # Override year range from the config
+  python run_diagnostics.py --config config/minimal_setup_CTL.yaml \\
+      --year-range 19 21
 """,
     )
     parser.add_argument(
@@ -111,6 +115,17 @@ Examples:
         default=None,
         metavar="DIR",
         help="Override the output base directory from the config.",
+    )
+    parser.add_argument(
+        "--year-range",
+        nargs=2,
+        type=int,
+        default=None,
+        metavar=("START", "END"),
+        help=(
+            "Inclusive model-year range to load (e.g. --year-range 19 21). "
+            "Overrides data.year_range in the config."
+        ),
     )
     parser.add_argument(
         "--vars",
@@ -185,6 +200,9 @@ def main(argv=None) -> int:
         except argparse.ArgumentTypeError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
+
+    if args.year_range is not None:
+        config["data"]["year_range"] = args.year_range
 
     output_root = args.output_dir or Path(config["output"]["base_dir"])
     exp_name = config["experiment"]["name"]
