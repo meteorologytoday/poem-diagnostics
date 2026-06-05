@@ -56,6 +56,7 @@ def _run_map_2d(
 
     lat2d = ds[grid_cfg["lat"]].values
     lon2d = ds[grid_cfg["lon"]].values
+    year_label = data.get("year_label", "")
 
     for varname in diag_cfg.get("vars", []):
         if varname not in ds:
@@ -73,14 +74,14 @@ def _run_map_2d(
 
         for hemisphere in diag_cfg.get("regions", ["NH", "SH"]):
             out_path = (
-                output_dir / "ice" / "map_2d" / f"{varname}_{hemisphere}.{out_cfg['format']}"
+                output_dir / "ice" / "map_2d" / f"{varname}_{hemisphere}_{year_label}.{out_cfg['format']}"
             )
             plot_utils.polar_map(
                 data=agg,
                 lat=lat2d,
                 lon=lon2d,
                 hemisphere=hemisphere,
-                title=f"Sea ice {varname} {hemisphere} — {mode}",
+                title=f"Sea ice {varname} {hemisphere} — {mode} ({year_label})",
                 output_path=out_path,
                 units=_UNITS.get(varname, ""),
                 vmin=vmin,

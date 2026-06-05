@@ -53,6 +53,7 @@ def _run_map_2d(
     grid_cfg = config["grids"]["atmos"]
     diag_cfg = config["diagnostics"]["atmos"].get("map_2d", {})
     out_cfg = config["output"]
+    year_label = data.get("year_label", "")
 
     lat = ds[grid_cfg["lat"]].values
     lon = ds[grid_cfg["lon"]].values
@@ -67,12 +68,12 @@ def _run_map_2d(
             print(f"  [atmos/map_2d] skipping '{varname}': {exc}")
             continue
 
-        out_path = output_dir / "atmos" / "map_2d" / f"{varname}.{out_cfg['format']}"
+        out_path = output_dir / "atmos" / "map_2d" / f"{varname}_{year_label}.{out_cfg['format']}"
         plot_utils.global_map(
             data=agg,
             lat=lat,
             lon=lon,
-            title=f"Atmos {varname} — {mode}",
+            title=f"Atmos {varname} — {mode} ({year_label})",
             output_path=out_path,
             units=_UNITS.get(varname, ""),
             symmetric=varname in _SYMMETRIC,
@@ -91,6 +92,7 @@ def _run_timeseries(
     ds = data["atmos_month"]
     diag_cfg = config["diagnostics"]["atmos"].get("timeseries", {})
     out_cfg = config["output"]
+    year_label = data.get("year_label", "")
 
     lat = ds["lat"]
     weights = np.cos(np.deg2rad(lat))
@@ -107,11 +109,11 @@ def _run_timeseries(
 
         global_mean = da.weighted(weights).mean(dim=["lat", "lon"])
         times = _to_numeric_years(global_mean)
-        out_path = output_dir / "atmos" / "timeseries" / f"{varname}.{out_cfg['format']}"
+        out_path = output_dir / "atmos" / "timeseries" / f"{varname}_{year_label}.{out_cfg['format']}"
         plot_utils.time_series(
             times=times,
             values=global_mean.values.astype(float),
-            title=f"Atmos global mean {varname}",
+            title=f"Atmos global mean {varname} ({year_label})",
             ylabel=_UNITS.get(varname, varname),
             output_path=out_path,
             dpi=out_cfg["dpi"],

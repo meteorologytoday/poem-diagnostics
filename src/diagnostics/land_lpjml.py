@@ -74,18 +74,19 @@ def _run_map_2d(
     diag_cfg = config["diagnostics"]["land"].get("map_2d", {})
     grid_cfg = config["grids"]["lpjml"]
     out_cfg = config["output"]
+    year_label = data.get("year_label", "")
 
     mask = _load_mask(loader, grid_cfg)
 
     monthly_groups: dict = diag_cfg.get("monthly_vars", {})
     for varnames in monthly_groups.values():
         for varname in varnames:
-            _plot_monthly_map(varname, loader, mode, mask, out_cfg, output_dir)
+            _plot_monthly_map(varname, loader, mode, mask, out_cfg, year_label, output_dir)
 
     annual_groups: dict = diag_cfg.get("annual_vars", {})
     for varnames in annual_groups.values():
         for varname in varnames:
-            _plot_annual_map(varname, loader, mode, mask, out_cfg, output_dir)
+            _plot_annual_map(varname, loader, mode, mask, out_cfg, year_label, output_dir)
 
 
 def _run_zonal_section(
@@ -97,9 +98,10 @@ def _run_zonal_section(
     loader = data["lpjml"]
     diag_cfg = config["diagnostics"]["land"].get("zonal_section", {})
     out_cfg = config["output"]
+    year_label = data.get("year_label", "")
 
     for varname in diag_cfg.get("vars", []):
-        _plot_soil_section(varname, loader, mode, out_cfg, output_dir)
+        _plot_soil_section(varname, loader, mode, out_cfg, year_label, output_dir)
 
 
 # ── Per-variable helpers ──────────────────────────────────────────────────────
@@ -110,6 +112,7 @@ def _plot_monthly_map(
     mode: str | int,
     mask: np.ndarray | None,
     out_cfg: dict,
+    year_label: str,
     output_dir: Path,
 ) -> None:
     try:
@@ -126,12 +129,12 @@ def _plot_monthly_map(
         return
 
     values = np.where(mask, np.asarray(agg), np.nan) if mask is not None else np.asarray(agg)
-    out_path = output_dir / "land" / "map_2d" / f"{varname}.{out_cfg['format']}"
+    out_path = output_dir / "land" / "map_2d" / f"{varname}_{year_label}.{out_cfg['format']}"
     plot_utils.global_map(
         data=_wrap(values, da, varname),
         lat=da.lat.values,
         lon=da.lon.values,
-        title=f"LPJ-mL {varname} — {mode}",
+        title=f"LPJ-mL {varname} — {mode} ({year_label})",
         output_path=out_path,
         units=_UNITS.get(varname, ""),
         n_levels=out_cfg.get("n_levels", 20),
@@ -146,6 +149,7 @@ def _plot_annual_map(
     mode: str | int,
     mask: np.ndarray | None,
     out_cfg: dict,
+    year_label: str,
     output_dir: Path,
 ) -> None:
     try:
@@ -162,12 +166,12 @@ def _plot_annual_map(
     agg = da.mean("time")
 
     values = np.where(mask, np.asarray(agg), np.nan) if mask is not None else np.asarray(agg)
-    out_path = output_dir / "land" / "map_2d" / f"{varname}.{out_cfg['format']}"
+    out_path = output_dir / "land" / "map_2d" / f"{varname}_{year_label}.{out_cfg['format']}"
     plot_utils.global_map(
         data=_wrap(values, da, varname),
         lat=da.lat.values,
         lon=da.lon.values,
-        title=f"LPJ-mL {varname} — annual mean",
+        title=f"LPJ-mL {varname} — annual mean ({year_label})",
         output_path=out_path,
         units=_UNITS.get(varname, ""),
         n_levels=out_cfg.get("n_levels", 20),
@@ -181,6 +185,7 @@ def _plot_soil_section(
     loader: Callable,
     mode: str | int,
     out_cfg: dict,
+    year_label: str,
     output_dir: Path,
 ) -> None:
     try:
@@ -207,12 +212,12 @@ def _plot_soil_section(
 
     zonal = agg.mean(dim="lon")
     n_layers = zonal.sizes["soil_layer"]
-    out_path = output_dir / "land" / "zonal_section" / f"{varname}.{out_cfg['format']}"
+    out_path = output_dir / "land" / "zonal_section" / f"{varname}_{year_label}.{out_cfg['format']}"
     plot_utils.zonal_section(
         data=zonal,
         lat=da.lat.values,
         depth=np.arange(n_layers, dtype=float),
-        title=f"LPJ-mL {varname} zonal mean — {mode}",
+        title=f"LPJ-mL {varname} zonal mean — {mode} ({year_label})",
         output_path=out_path,
         units=_UNITS.get(varname, ""),
         n_levels=out_cfg.get("n_levels", 20),

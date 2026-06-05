@@ -61,6 +61,7 @@ def _run_map_2d(
     grid_cfg = config["grids"]["ocean"]
     diag_cfg = config["diagnostics"]["ocean"].get("map_2d", {})
     out_cfg = config["output"]
+    year_label = data.get("year_label", "")
 
     lat2d = ds[grid_cfg["lat"]].values
     lon2d = ds[grid_cfg["lon"]].values
@@ -75,12 +76,12 @@ def _run_map_2d(
             print(f"  [ocean/map_2d] skipping '{varname}': {exc}")
             continue
 
-        out_path = output_dir / "ocean" / "map_2d" / f"{varname}.{out_cfg['format']}"
+        out_path = output_dir / "ocean" / "map_2d" / f"{varname}_{year_label}.{out_cfg['format']}"
         plot_utils.global_map(
             data=agg,
             lat=lat2d,
             lon=lon2d,
-            title=f"Ocean {varname} — {mode}",
+            title=f"Ocean {varname} — {mode} ({year_label})",
             output_path=out_path,
             units=_UNITS.get(varname, ""),
             symmetric=varname in _SYMMETRIC,
@@ -99,6 +100,7 @@ def _run_zonal_section(
     ds = data["ocean_month"]
     diag_cfg = config["diagnostics"]["ocean"].get("zonal_section", {})
     out_cfg = config["output"]
+    year_label = data.get("year_label", "")
 
     lat1d = ds["yt_ocean"].values
     depth = ds["st_ocean"].values
@@ -115,13 +117,13 @@ def _run_zonal_section(
 
         zonal = agg.mean(dim="xt_ocean")
         out_path = (
-            output_dir / "ocean" / "zonal_section" / f"{varname}.{out_cfg['format']}"
+            output_dir / "ocean" / "zonal_section" / f"{varname}_{year_label}.{out_cfg['format']}"
         )
         plot_utils.zonal_section(
             data=zonal,
             lat=lat1d,
             depth=depth,
-            title=f"Ocean {varname} zonal mean — {mode}",
+            title=f"Ocean {varname} zonal mean — {mode} ({year_label})",
             output_path=out_path,
             units=_UNITS.get(varname, ""),
             symmetric=varname in _SYMMETRIC,
@@ -140,6 +142,7 @@ def _run_timeseries(
     ds = data["ocean_scalar"]
     diag_cfg = config["diagnostics"]["ocean"].get("timeseries", {})
     out_cfg = config["output"]
+    year_label = data.get("year_label", "")
 
     for varname in diag_cfg.get("vars", []):
         if varname not in ds:
@@ -148,11 +151,11 @@ def _run_timeseries(
 
         da = ds[varname].squeeze()
         times = _to_numeric_years(da)
-        out_path = output_dir / "ocean" / "timeseries" / f"{varname}.{out_cfg['format']}"
+        out_path = output_dir / "ocean" / "timeseries" / f"{varname}_{year_label}.{out_cfg['format']}"
         plot_utils.time_series(
             times=times,
             values=da.values.astype(float),
-            title=f"Ocean scalar {varname}",
+            title=f"Ocean scalar {varname} ({year_label})",
             ylabel=_UNITS.get(varname, varname),
             output_path=out_path,
             dpi=out_cfg["dpi"],
