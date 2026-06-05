@@ -41,13 +41,25 @@ _NOLEAP_MONTH_START_DOY = np.array(
 
 # ── Epoch discovery ───────────────────────────────────────────────────────────
 
-def discover_epochs(history_dir: str | Path) -> list[str]:
+def discover_epochs(
+    history_dir: str | Path,
+    year_range: tuple[int, int] | None = None,
+) -> list[str]:
     """
     Return a sorted list of epoch strings found in *history_dir*.
 
     Epochs are inferred from POEM output filenames of the form
     {epoch}.{component}.nc where epoch is a 10-digit date string
-    (e.g. "0019070101").
+    (e.g. "0019070101"). The year is the first 4 digits of the epoch.
+
+    Parameters
+    ----------
+    history_dir:
+        Directory containing POEM history output files.
+    year_range:
+        Optional (start_year, end_year) tuple (both inclusive). Epochs
+        whose year falls outside this range are excluded. When None, all
+        discovered epochs are returned.
     """
     history_dir = Path(history_dir)
     pattern = re.compile(r"^(\d{10})\.\w+\.nc$")
@@ -61,7 +73,17 @@ def discover_epochs(history_dir: str | Path) -> list[str]:
             f"No POEM epoch files found in {history_dir}. "
             "Expected files named like '0019070101.atmos_month.nc'."
         )
-    return sorted(epochs)
+    all_epochs = sorted(epochs)
+    if year_range is None:
+        return all_epochs
+    start, end = year_range
+    filtered = [e for e in all_epochs if start <= int(e[:4]) <= end]
+    if not filtered:
+        raise ValueError(
+            f"No epochs found in year range [{start}, {end}]. "
+            f"Available years: {sorted({int(e[:4]) for e in all_epochs})}"
+        )
+    return filtered
 
 
 # ── POEM component loading ────────────────────────────────────────────────────
@@ -226,7 +248,10 @@ def load_all(config: dict) -> dict:
     """
     data_cfg = config["data"]
     history_dir = data_cfg["history_dir"]
-    epochs = discover_epochs(history_dir)
+    year_range = data_cfg.get("year_range")
+    if year_range is not None:
+        year_range = (int(year_range[0]), int(year_range[1]))
+    epochs = discover_epochs(history_dir, year_range=year_range)
 
     result: dict = {}
 

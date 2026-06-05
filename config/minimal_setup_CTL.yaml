@@ -6,6 +6,10 @@ experiment:
 data:
   history_dir: /p/projects/poem/tienyiao/projects/POEM_playground/test_minimal_setup/minimal_setup_CTL/history
 
+  # Inclusive model-year range to load. Epochs outside this range are
+  # ignored. Omit (or set to null) to load all epochs in history_dir.
+  year_range: [19, 23]
+
   # POEM component files: {epoch}.{component}.nc
   # Epochs are discovered automatically by scanning history_dir.
   components:
