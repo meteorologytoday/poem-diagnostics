@@ -111,7 +111,7 @@ everything upfront. The `land_lpjml` module requests variables individually.
 | atmos | ✓ | ✓ | — |
 | ocean | ✓ | ✓ | ✓ |
 | ice | ✓ | — | — |
-| land | ✓ | — | ✓ (soil layers) |
+| land | ✓ | ✓ (global land mean) | ✓ (soil layers) |
 
 A `—` means the component does not implement that type. Requesting it has
 no effect.

@@ -115,6 +115,9 @@ diagnostics:
       # Annual-frequency LPJ-mL variables.
       annual_vars:
         carbon:   [agb, vegc, soilc, litc, firec]
+    timeseries:
+      # Global land-mean time series of selected LPJ-mL variables.
+      vars: [vegc, mswc1, mswc2]
     zonal_section:
       # Packed soil-layer variables — produce latitude-depth profiles.
       vars: [msoiltemp, soilc_layer]

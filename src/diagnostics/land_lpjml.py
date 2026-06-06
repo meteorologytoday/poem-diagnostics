@@ -89,6 +89,57 @@ def _run_map_2d(
             _plot_annual_map(varname, loader, mode, mask, out_cfg, year_label, output_dir)
 
 
+def _run_timeseries(
+    data: dict,
+    config: dict,
+    mode: str | int,
+    output_dir: Path,
+) -> None:
+    loader = data["lpjml"]
+    diag_cfg = config["diagnostics"]["land"].get("timeseries", {})
+    grid_cfg = config["grids"]["lpjml"]
+    out_cfg = config["output"]
+    year_label = data.get("year_label", "")
+
+    mask = _load_mask(loader, grid_cfg)
+
+    for varname in diag_cfg.get("vars", []):
+        _plot_land_timeseries(varname, loader, mask, out_cfg, year_label, output_dir)
+
+
+def _plot_land_timeseries(
+    varname: str,
+    loader: Callable,
+    mask: np.ndarray | None,
+    out_cfg: dict,
+    year_label: str,
+    output_dir: Path,
+) -> None:
+    try:
+        da = loader(varname)
+    except FileNotFoundError as exc:
+        print(f"  [land/timeseries] skipping '{varname}': {exc}")
+        return
+
+    times = da.time.values.astype(float)  # absolute fractional years
+
+    values = da.values  # (time, lat, lon)
+    if mask is not None:
+        values = np.where(mask[np.newaxis, ...], values, np.nan)
+    ts = np.nanmean(values.reshape(values.shape[0], -1), axis=1)
+
+    out_path = output_dir / "land" / "timeseries" / f"{varname}_{year_label}.{out_cfg['format']}"
+    plot_utils.time_series(
+        times=times,
+        values=ts,
+        title=f"LPJ-mL {varname} global land mean ({year_label})",
+        ylabel=_UNITS.get(varname, varname),
+        output_path=out_path,
+        dpi=out_cfg["dpi"],
+    )
+    print(f"  [land/timeseries] saved {out_path}")
+
+
 def _run_zonal_section(
     data: dict,
     config: dict,
@@ -255,5 +306,6 @@ def _wrap(
 
 HANDLERS: dict[str, Callable] = {
     "map_2d": _run_map_2d,
+    "timeseries": _run_timeseries,
     "zonal_section": _run_zonal_section,
 }

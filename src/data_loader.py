@@ -195,7 +195,7 @@ def load_lpjml_var(
     if varname in packed_vars:
         da = _unpack_lpjml(da, **packed_vars[varname])
 
-    return da
+    return _assign_lpjml_time(da, epochs)
 
 
 def make_lpjml_loader(
@@ -214,23 +214,18 @@ def make_lpjml_loader(
 def lpjml_month_coord(da: xr.DataArray) -> np.ndarray:
     """
     Derive integer calendar months (1-12) for each time step of an
-    LPJ-mL monthly DataArray opened with decode_times=False.
+    LPJ-mL monthly DataArray.
 
-    LPJ-mL encodes time as fractional years since 1901-01-01 on a
-    365-day (noleap) calendar. The fractional part of each value gives
-    the day-of-year fraction, from which the month is recovered by
-    comparing against the noleap month-start DOY table.
+    Expects the DataArray to carry an absolute fractional-year time
+    coordinate assigned by _assign_lpjml_time (e.g. 1907.0 = Jan 1907,
+    1907 + 1/12 = Feb 1907). Month is recovered from the fractional part
+    via round((frac * 12)) to avoid DOY-boundary precision issues.
 
-    This function assumes uniformly monthly output. Call it only on
-    variables whose time axis represents monthly steps.
+    Only call this on monthly-frequency variables.
     """
     time_vals = da.time.values.astype(float)
-    doy = (time_vals % 1.0) * 365.0
-    # searchsorted with side='right' returns the number of month-start
-    # boundaries that doy exceeds, which equals the 1-based month index.
-    months = np.searchsorted(_NOLEAP_MONTH_START_DOY, doy, side="right").astype(int)
-    # Clamp to [1, 12] as a safety measure against floating-point edge cases.
-    return np.clip(months, 1, 12)
+    month_0based = np.round((time_vals % 1.0) * 12).astype(int) % 12
+    return month_0based + 1
 
 
 # ── Full load orchestration ───────────────────────────────────────────────────
@@ -271,6 +266,43 @@ def load_all(config: dict) -> dict:
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
+
+def _assign_lpjml_time(
+    da: xr.DataArray,
+    epochs: list[str],
+) -> xr.DataArray:
+    """
+    Replace the non-monotonic relative time axis of a concatenated LPJ-mL
+    DataArray with absolute fractional-year coordinates.
+
+    Every LPJ-mL epoch file resets its time axis to [0, 1, 2, ...],
+    so after xr.concat the axis is non-monotonic. This function derives:
+
+      absolute_time = epoch_start_year + step_index / steps_per_year
+
+    steps_per_year is inferred from the epoch duration (difference between
+    consecutive epoch start years) and the number of steps per epoch.
+    Annual variables yield steps_per_year=1; monthly yield 12.
+    """
+    n_total = da.sizes["time"]
+    n_per_epoch = n_total // len(epochs)
+
+    if len(epochs) >= 2:
+        epoch_duration = int(epochs[1][2:6]) - int(epochs[0][2:6])
+    else:
+        # Single epoch: guess resolution from step count.
+        # Monthly data will have n_per_epoch divisible by 12 and >> 12.
+        epoch_duration = n_per_epoch // 12 if (n_per_epoch % 12 == 0 and n_per_epoch > 12) else n_per_epoch
+
+    steps_per_year = n_per_epoch / epoch_duration
+
+    abs_times: list[np.ndarray] = []
+    for epoch in epochs:
+        epoch_year = int(epoch[2:6])
+        abs_times.append(epoch_year + np.arange(n_per_epoch) / steps_per_year)
+
+    return da.assign_coords(time=np.concatenate(abs_times))
+
 
 def _unpack_lpjml(
     da: xr.DataArray,
