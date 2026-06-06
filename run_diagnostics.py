@@ -68,6 +68,10 @@ Examples:
   # Override year range from the config
   python run_diagnostics.py --config config/minimal_setup_CTL.yaml \\
       --year-range 1907 2007
+
+  # Point at a different experiment without a separate config file
+  python run_diagnostics.py --config config/minimal_setup_CTL.yaml \\
+      --history-dir /path/to/other/history --exp-name my_run
 """,
     )
     parser.add_argument(
@@ -108,6 +112,19 @@ Examples:
             f"Diagnostic plot types: {ALL_DIAG_TYPES}. "
             "Default: all. Each component only produces types it supports."
         ),
+    )
+    parser.add_argument(
+        "--history-dir",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="Override data.history_dir from the config.",
+    )
+    parser.add_argument(
+        "--exp-name",
+        default=None,
+        metavar="NAME",
+        help="Override experiment.name from the config (used in output paths and titles).",
     )
     parser.add_argument(
         "--output-dir",
@@ -201,6 +218,10 @@ def main(argv=None) -> int:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
 
+    if args.history_dir is not None:
+        config["data"]["history_dir"] = str(args.history_dir)
+    if args.exp_name is not None:
+        config["experiment"]["name"] = args.exp_name
     if args.year_range is not None:
         config["data"]["year_range"] = args.year_range
 

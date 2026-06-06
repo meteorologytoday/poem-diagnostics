@@ -46,6 +46,8 @@ python run_diagnostics.py --config config/minimal_setup_CTL.yaml \
 | `--modes` | `annual` | One or more of: `annual DJF MAM JJA SON` or integer `1`–`12` |
 | `--components` | all | `atmos ocean ice land` |
 | `--diag-types` | all | `map_2d timeseries zonal_section` |
+| `--history-dir` | from config | Overrides `data.history_dir` — point at a different experiment's output |
+| `--exp-name` | from config | Overrides `experiment.name` — controls output subdirectory and plot titles |
 | `--output-dir` | from config | Overrides `output.base_dir` in the YAML |
 | `--year-range START END` | from config | Inclusive 4-digit year range (e.g. `--year-range 1907 2307`); overrides `data.year_range` |
 | `--vars` | all | Restrict to specific variable names (useful during development) |
