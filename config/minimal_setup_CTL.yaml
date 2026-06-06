@@ -116,9 +116,15 @@ diagnostics:
       annual_vars:
         carbon:   [agb, vegc, soilc, litc, firec]
     timeseries:
-      vars: [vegc, mswc1, mswc2]
-      # Named lat/lon boxes for regional means. Lon in [-180, 180].
-      # Omit 'regions' entirely to fall back to a single global land mean.
+      # Each variable maps to its spatial reduction: 'mean' or 'sum'.
+      # Use 'mean' for intensive quantities (e.g. temperature, fraction).
+      # Use 'sum' for extensive quantities (e.g. carbon stocks, fluxes).
+      vars:
+        vegc:  sum
+        mswc1: mean
+        mswc2: mean
+      # Named lat/lon boxes for regional breakdowns. Lon in [-180, 180].
+      # Omit 'regions' entirely to fall back to a single global land stat.
       regions:
         global:     {lat_min: -90, lat_max:  90, lon_min: -180, lon_max: 180}
         tropics:    {lat_min: -30, lat_max:  30, lon_min: -180, lon_max: 180}

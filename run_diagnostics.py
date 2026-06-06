@@ -197,6 +197,10 @@ def apply_var_filter(config: dict, vars_filter: list[str] | None) -> dict:
     if "vars" in zs:
         zs["vars"] = [v for v in zs["vars"] if v in vset]
 
+    ts = land_cfg.get("timeseries", {})
+    if "vars" in ts and isinstance(ts["vars"], dict):
+        ts["vars"] = {v: r for v, r in ts["vars"].items() if v in vset}
+
     return cfg
 
 

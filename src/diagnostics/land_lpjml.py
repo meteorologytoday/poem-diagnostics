@@ -104,21 +104,25 @@ def _run_timeseries(
 
     mask = _load_mask(loader, grid_cfg)
 
-    for varname in diag_cfg.get("vars", []):
-        _plot_land_timeseries(varname, loader, mask, regions, out_cfg, year_label, output_dir)
+    vars_cfg: dict = diag_cfg.get("vars", {})
+    for varname, reduction in vars_cfg.items():
+        _plot_land_timeseries(varname, reduction, loader, mask, regions, out_cfg, year_label, output_dir)
 
 
-def _regional_mean(
+def _regional_stat(
     values: np.ndarray,
     lat: np.ndarray,
     lon: np.ndarray,
     land_mask: np.ndarray | None,
     box: dict,
+    reduction: str,
 ) -> np.ndarray:
     """
-    Return the spatial mean of *values* (time, lat, lon) over grid cells
-    that fall within *box* and are active land cells.
+    Return the spatial mean or sum of *values* (time, lat, lon) over grid
+    cells that fall within *box* and are active land cells.
 
+    reduction: 'mean' for intensive quantities (temperature, fraction),
+               'sum'  for extensive quantities (carbon stocks, fluxes).
     *box* must contain lat_min, lat_max, lon_min, lon_max (all inclusive).
     Lon coordinates are assumed to be in the range [-180, 180].
     """
@@ -130,11 +134,15 @@ def _regional_mean(
     )
     combined = box_mask & land_mask if land_mask is not None else box_mask
     masked = np.where(combined[np.newaxis, ...], values, np.nan)
-    return np.nanmean(masked.reshape(values.shape[0], -1), axis=1)
+    flat = masked.reshape(values.shape[0], -1)
+    if reduction == "sum":
+        return np.nansum(flat, axis=1)
+    return np.nanmean(flat, axis=1)
 
 
 def _plot_land_timeseries(
     varname: str,
+    reduction: str,
     loader: Callable,
     mask: np.ndarray | None,
     regions: dict,
@@ -155,14 +163,15 @@ def _plot_land_timeseries(
 
     if regions:
         series = {
-            name: _regional_mean(values, lat, lon, mask, box)
+            name: _regional_stat(values, lat, lon, mask, box, reduction)
             for name, box in regions.items()
         }
-        title = f"LPJ-mL {varname} regional land mean ({year_label})"
+        title = f"LPJ-mL {varname} regional land {reduction} ({year_label})"
     else:
         land_vals = np.where(mask[np.newaxis, ...], values, np.nan) if mask is not None else values
-        series = np.nanmean(land_vals.reshape(values.shape[0], -1), axis=1)
-        title = f"LPJ-mL {varname} global land mean ({year_label})"
+        flat = land_vals.reshape(values.shape[0], -1)
+        series = np.nansum(flat, axis=1) if reduction == "sum" else np.nanmean(flat, axis=1)
+        title = f"LPJ-mL {varname} global land {reduction} ({year_label})"
 
     out_path = output_dir / "land" / "timeseries" / f"{varname}_{year_label}.{out_cfg['format']}"
     plot_utils.time_series(
