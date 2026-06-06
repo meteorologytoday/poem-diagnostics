@@ -116,8 +116,14 @@ diagnostics:
       annual_vars:
         carbon:   [agb, vegc, soilc, litc, firec]
     timeseries:
-      # Global land-mean time series of selected LPJ-mL variables.
       vars: [vegc, mswc1, mswc2]
+      # Named lat/lon boxes for regional means. Lon in [-180, 180].
+      # Omit 'regions' entirely to fall back to a single global land mean.
+      regions:
+        global:     {lat_min: -90, lat_max:  90, lon_min: -180, lon_max: 180}
+        tropics:    {lat_min: -30, lat_max:  30, lon_min: -180, lon_max: 180}
+        NH_extrop:  {lat_min:  30, lat_max:  90, lon_min: -180, lon_max: 180}
+        SH_extrop:  {lat_min: -90, lat_max: -30, lon_min: -180, lon_max: 180}
     zonal_section:
       # Packed soil-layer variables — produce latitude-depth profiles.
       vars: [msoiltemp, soilc_layer]

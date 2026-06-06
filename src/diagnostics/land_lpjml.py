@@ -100,17 +100,44 @@ def _run_timeseries(
     grid_cfg = config["grids"]["lpjml"]
     out_cfg = config["output"]
     year_label = data.get("year_label", "")
+    regions: dict = diag_cfg.get("regions", {})
 
     mask = _load_mask(loader, grid_cfg)
 
     for varname in diag_cfg.get("vars", []):
-        _plot_land_timeseries(varname, loader, mask, out_cfg, year_label, output_dir)
+        _plot_land_timeseries(varname, loader, mask, regions, out_cfg, year_label, output_dir)
+
+
+def _regional_mean(
+    values: np.ndarray,
+    lat: np.ndarray,
+    lon: np.ndarray,
+    land_mask: np.ndarray | None,
+    box: dict,
+) -> np.ndarray:
+    """
+    Return the spatial mean of *values* (time, lat, lon) over grid cells
+    that fall within *box* and are active land cells.
+
+    *box* must contain lat_min, lat_max, lon_min, lon_max (all inclusive).
+    Lon coordinates are assumed to be in the range [-180, 180].
+    """
+    lat2d = lat[:, np.newaxis]
+    lon2d = lon[np.newaxis, :]
+    box_mask = (
+        (lat2d >= box["lat_min"]) & (lat2d <= box["lat_max"]) &
+        (lon2d >= box["lon_min"]) & (lon2d <= box["lon_max"])
+    )
+    combined = box_mask & land_mask if land_mask is not None else box_mask
+    masked = np.where(combined[np.newaxis, ...], values, np.nan)
+    return np.nanmean(masked.reshape(values.shape[0], -1), axis=1)
 
 
 def _plot_land_timeseries(
     varname: str,
     loader: Callable,
     mask: np.ndarray | None,
+    regions: dict,
     out_cfg: dict,
     year_label: str,
     output_dir: Path,
@@ -122,17 +149,26 @@ def _plot_land_timeseries(
         return
 
     times = da.time.values.astype(float)  # absolute fractional years
-
     values = da.values  # (time, lat, lon)
-    if mask is not None:
-        values = np.where(mask[np.newaxis, ...], values, np.nan)
-    ts = np.nanmean(values.reshape(values.shape[0], -1), axis=1)
+    lat = da.lat.values
+    lon = da.lon.values
+
+    if regions:
+        series = {
+            name: _regional_mean(values, lat, lon, mask, box)
+            for name, box in regions.items()
+        }
+        title = f"LPJ-mL {varname} regional land mean ({year_label})"
+    else:
+        land_vals = np.where(mask[np.newaxis, ...], values, np.nan) if mask is not None else values
+        series = np.nanmean(land_vals.reshape(values.shape[0], -1), axis=1)
+        title = f"LPJ-mL {varname} global land mean ({year_label})"
 
     out_path = output_dir / "land" / "timeseries" / f"{varname}_{year_label}.{out_cfg['format']}"
     plot_utils.time_series(
         times=times,
-        values=ts,
-        title=f"LPJ-mL {varname} global land mean ({year_label})",
+        values=series,
+        title=title,
         ylabel=_UNITS.get(varname, varname),
         output_path=out_path,
         dpi=out_cfg["dpi"],

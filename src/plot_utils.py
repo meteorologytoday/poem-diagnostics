@@ -261,18 +261,27 @@ def zonal_section(
 
 def time_series(
     times: np.ndarray,
-    values: np.ndarray,
+    values: np.ndarray | dict[str, np.ndarray],
     title: str,
     ylabel: str,
     output_path: str | Path,
     dpi: int = 150,
 ) -> None:
-    """Save a simple line plot of *values* against *times*."""
+    """Save a line plot of *values* against *times*.
+
+    *values* may be a 1-D array (single line) or a dict mapping region
+    names to 1-D arrays (one labelled line per region).
+    """
     fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(times, values, linewidth=1.0)
+    if isinstance(values, dict):
+        for label, vals in values.items():
+            ax.plot(times, vals, linewidth=1.0, label=label)
+        ax.legend(fontsize=8, loc="best")
+    else:
+        ax.plot(times, values, linewidth=1.0)
     ax.set_title(title, fontsize=11)
     ax.set_ylabel(ylabel)
-    ax.set_xlabel("Time")
+    ax.set_xlabel("Year")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
     _save(fig, output_path, dpi)
